@@ -1,0 +1,12 @@
+nyyyny\nyyyyy
+1. clean up
+2. extra logging
+3. prev build
+4. android
+5. ios
+6. fps cap patch
+7. desired fps cap (or default)
+8. high dpi
+9. crt shader disable
+10. install on android
+11. transfer saves
