@@ -1,4 +1,4 @@
-nyyyny\nyyyyy
+nyyyny\nynynnn
 1. clean up
 2. extra logging
 3. prev build
@@ -9,4 +9,5 @@ nyyyny\nyyyyy
 8. high dpi
 9. crt shader disable
 10. install on android
-11. transfer saves
+11. transfer saves from pc to mobile
+12. transfer saves from mobile to pc

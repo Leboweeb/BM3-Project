@@ -3,12 +3,17 @@ using System.Diagnostics;
 internal class Program
 {
 
-    static readonly string currentUserGUID = Guid.NewGuid().ToString();
+    static readonly string defaultGUID = Guid.NewGuid().ToString();
     static readonly string currentLovelyVersion = "0.8.0";
-    const int BalatroAppID = 2379780;
     private static int Main(string[] args)
     {
         var rootCommand = new RootCommand("Tool to build balatro APK for server to distribute");
+        Option <string> currentGUID = new("--guid")
+        {
+            HelpName = "Guid",
+            Description = "Provide guid to the build tool to use instead of it generating a custom one.",
+            DefaultValueFactory = _ => defaultGUID
+        };
         Option<string> buildDir = new("--buildDir", "-bd")
         {
             HelpName = "BuildDir",
@@ -63,6 +68,7 @@ internal class Program
             // then add the options
             rootCommand.Options.Add(item);
         }
+        rootCommand.Add(currentGUID);
         ParseResult result = rootCommand.Parse(args);
         try
         {
@@ -72,14 +78,15 @@ internal class Program
             var steamProcess = new Process();
             steamProcess.StartInfo.FileName = "steam";
             Process process = new();
-            const string bmmOptions = "nyyyny\nnyyyy";
+            const string bmmOptions = "nyyyny\nynynnn";
+            var guid = result.GetRequiredValue(currentGUID);
             var parsedBMMPath = result.GetRequiredValue(bmmPath);
             var parsedBalatroBinPath = result.GetRequiredValue(balatroBinPath);
             var parsedBalatroSavesPath = result.GetRequiredValue(balatroSavePath);
-            BackupBalatroSaves(parsedBalatroSavesPath);
+            BackupBalatroSaves(parsedBalatroSavesPath, guid);
             // start balatro first with mods to refresh dump files
             StartBalatroWithTimeout();
-            PrepareForSaveTransfer(parsedBalatroSavesPath);
+            PrepareForSaveTransfer(parsedBalatroSavesPath, guid);
             process.StartInfo.FileName = parsedBMMPath;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardInput = true;
@@ -91,7 +98,8 @@ internal class Program
             }
             process.WaitForExit();
             Console.WriteLine($"Built balatro at path {Path.Join(parsedBMMPath, "balatro.apk")} from {parsedBalatroBinPath} ");
-            CleanupAfterBuild(parsedBalatroSavesPath);
+            // in the future, have server delete folder with GUID for current user.
+            CleanupAfterBuild(parsedBalatroSavesPath,guid);
             return 0;
         }
         else
@@ -111,13 +119,13 @@ internal class Program
     }
 
 
-    private static void PrepareForSaveTransfer(string ParsedBalatroSavePath)
+    private static void PrepareForSaveTransfer(string ParsedBalatroSavePath, string guid)
     {
 
         // before build with BMM, prepare copy for main machine
         var balatroSavePathInfo = new DirectoryInfo(ParsedBalatroSavePath) ?? throw new Exception($"{ParsedBalatroSavePath} is null or invalid! ");
         var pathParent = balatroSavePathInfo.Parent ?? throw new Exception($"{ParsedBalatroSavePath} is null or invalid! ");
-        var newName = Path.Join(pathParent.FullName, $"{balatroSavePathInfo.Name} Copy {currentUserGUID}");
+        var newName = Path.Join(pathParent.FullName, $"{balatroSavePathInfo.Name} Copy {guid}");
         var currentSavePath = balatroSavePathInfo.FullName;
         var modsDir = Path.Combine([currentSavePath, "Mods"]);
         // local util function
@@ -183,12 +191,12 @@ internal class Program
         }
     }
 
-    private static void BackupBalatroSaves(string ParsedBalatroSavePath)
+    private static void BackupBalatroSaves(string ParsedBalatroSavePath, string guid)
     {
         // before build with BMM, prepare copy for main machine
         var balatroSavePathInfo = new DirectoryInfo(ParsedBalatroSavePath) ?? throw new Exception($"{ParsedBalatroSavePath} is null or invalid! ");
         var pathParent = balatroSavePathInfo.Parent ?? throw new Exception($"{ParsedBalatroSavePath} is null or invalid! ");
-        var newName = Path.Join(pathParent.FullName, $"{balatroSavePathInfo.Name} Copy {currentUserGUID}");
+        var newName = Path.Join(pathParent.FullName, $"{balatroSavePathInfo.Name} Copy {guid}");
         var currentSavePath = balatroSavePathInfo.FullName;
         CopyDirectory(currentSavePath, newName, true);
     }
@@ -197,13 +205,17 @@ internal class Program
     {
         return Path.Combine([firstPath, .. paths]);
     }
-    private static void CleanupAfterBuild(string ParsedBalatroSavePath)
+    private static void CleanupAfterBuild(string parsedBalatroSavePath, string guid)
     {
-        var balatroSavePathInfo = new DirectoryInfo(ParsedBalatroSavePath) ?? throw new Exception($"{ParsedBalatroSavePath} is null or invalid! ");
-        var pathParent = balatroSavePathInfo.Parent ?? throw new Exception($"{ParsedBalatroSavePath} is null or invalid! ");
-        Directory.Delete(ParsedBalatroSavePath,true);
-        // rename backed up folder to Balatro to restore backup
-        Directory.Move(Path.Join(pathParent.FullName, $"{balatroSavePathInfo.Name} Copy {currentUserGUID}"), ParsedBalatroSavePath);
+        var balatroSavePathInfo = new DirectoryInfo(parsedBalatroSavePath) ?? throw new Exception($"{parsedBalatroSavePath} is null or invalid! ");
+        var pathParent = balatroSavePathInfo.Parent ?? throw new Exception($"{parsedBalatroSavePath} is null or invalid! ");
+        var backupName = Path.Join(pathParent.FullName, $"{balatroSavePathInfo.Name} Copy {guid}");
+        // swap balatro folder and backed up balatro folder quickly
+        
+        // first move main balatro folder to temp copy
+        Directory.Move(parsedBalatroSavePath,Path.Join(pathParent.FullName, guid));
+        // then rename the backup to the main balatro folder
+        Directory.Move(backupName,parsedBalatroSavePath);
     }
 
     // taken from MSDN
