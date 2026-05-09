@@ -1,36 +1,60 @@
 ﻿using System.CommandLine;
 using System.Diagnostics;
+using System.IO.Compression;
+using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 internal class Program
 {
 
+    [Serializable()]
+    internal class UnsupportedOSExecption : Exception, ISerializable
+    {
+        public UnsupportedOSExecption()
+        {
+        }
+
+        public UnsupportedOSExecption(string? message) : base(message)
+        {
+        }
+
+        public UnsupportedOSExecption(string? message, Exception? innerException) : base(message, innerException)
+        {
+        }
+
+    }
+
     static readonly string defaultGUID = Guid.NewGuid().ToString();
-    static readonly string currentLovelyVersion = "0.8.0";
+    static readonly string currentLovelyVersion = "0.9.0";
+    static readonly string currentDate = DateTime.Now.ToString("dd-MM-yyyy");
+
+    static readonly int balatroAppID = 2379780;
+    private static readonly string bm3SavesDirName = "BM3-Saves";
+
     private static int Main(string[] args)
     {
         var rootCommand = new RootCommand("Tool to build balatro APK for server to distribute");
-        Option <string> currentGUID = new("--guid")
+        Option<string> saveName = new("--guid")
         {
             HelpName = "Guid",
             Description = "Provide guid to the build tool to use instead of it generating a custom one.",
-            DefaultValueFactory = _ => defaultGUID
+            DefaultValueFactory = _ => $"{currentDate}-{defaultGUID}"
         };
         Option<string> buildDir = new("--buildDir", "-bd")
         {
             HelpName = "BuildDir",
             Description = "Directory which the tool builds the balatro apk for the current user",
-            DefaultValueFactory = _ => Path.GetTempPath()
+            DefaultValueFactory = _ => CreateDirIfNotExists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), bm3SavesDirName))
         };
 
-        Option<string> balatroBinPath = new("--balatroBinpath", "-bbp")
+        Option<int> timeOut = new("--timeout", "-t")
         {
-            HelpName = "BalatroBinPath",
-            Description = "Directory where the balatro binary is found",
+            HelpName = "TimeoutValue",
+            Description = "How much time (in seconds this script waits until balatro is fully loaded to exit. Default is 15 seconds)",
             DefaultValueFactory = _ =>
             {
-                return @"/home/mohammad/.local/share/Steam/steamapps/common/Balatro";
+                return 20;
             }
         };
-
 
         Option<string> balatroSavePath = new("--balatroSavepath", "-bsp")
         {
@@ -38,7 +62,7 @@ internal class Program
             Description = "Directory where balatro saves are found",
             DefaultValueFactory = _ =>
             {
-                return @"/home/mohammad/.steam/steam/steamapps/compatdata/2379780/pfx/drive_c/users/steamuser/AppData/Roaming/Balatro";
+                return GetBalatroDefaultSavePath();
             }
         };
         Option<string> bmmPath = new("--bmmpath", "-bmmp")
@@ -47,11 +71,15 @@ internal class Program
             Description = "Directory where BMM is found",
             DefaultValueFactory = _ =>
             {
-                return @"/home/mohammad/Downloads/BMM/balatro-mobile-maker";
+                var userDownloadPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Downloads"
+                );
+                return Path.Combine(userDownloadPath, "BMM");
             }
         };
 
-        foreach (var item in new Option[] { buildDir, balatroBinPath, bmmPath, balatroSavePath })
+        foreach (var item in new Option[] { buildDir, bmmPath, balatroSavePath })
         {
             // we want to set them to not required to use the default factory values
             item.Required = false;
@@ -61,55 +89,66 @@ internal class Program
                 var referencedPath = result.GetValueOrDefault<string>();
                 if (!(Path.Exists(referencedPath) || string.IsNullOrEmpty(referencedPath)))
                 {
-                    result.AddError("Build Directory does not exist!");
+                    result.AddError($"Path {referencedPath} does not exist!");
                 }
 
             });
             // then add the options
             rootCommand.Options.Add(item);
         }
-        rootCommand.Add(currentGUID);
+        timeOut.Validators.Add(result =>
+        {
+           var referencedValue = result.GetValueOrDefault<int>();
+           if (referencedValue <= 0)
+           {
+                result.AddError("Timeout must be higher than 0 seconds! Aborting..");
+           }
+        });
+        rootCommand.Add(timeOut);
+        rootCommand.Add(saveName);
         ParseResult result = rootCommand.Parse(args);
         try
         {
-        if (result.Errors.Count == 0)
-        {
-            // start steam first to mount proton windows prefix
-            var steamProcess = new Process();
-            steamProcess.StartInfo.FileName = "steam";
-            Process process = new();
-            const string bmmOptions = "nyyyny\nynynnn";
-            var guid = result.GetRequiredValue(currentGUID);
-            var parsedBMMPath = result.GetRequiredValue(bmmPath);
-            var parsedBalatroBinPath = result.GetRequiredValue(balatroBinPath);
-            var parsedBalatroSavesPath = result.GetRequiredValue(balatroSavePath);
-            BackupBalatroSaves(parsedBalatroSavesPath, guid);
-            // start balatro first with mods to refresh dump files
-            StartBalatroWithTimeout();
-            PrepareForSaveTransfer(parsedBalatroSavesPath, guid);
-            process.StartInfo.FileName = parsedBMMPath;
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.RedirectStandardInput = true;
-            process.Start();
-            StreamWriter writer = process.StandardInput;
-            foreach (var item in bmmOptions.ToCharArray())
+            if (result.Errors.Count == 0)
             {
-                writer.Write($"{item}\n");
+                // start steam first to mount proton windows prefix
+                EnsureSteamStarted();
+                Process process = new();
+                // const string bmmOptions = "nyyyny\nynynnn";
+                var guid = result.GetRequiredValue(saveName);
+                var exportSavesPath = result.GetRequiredValue(buildDir);
+                var parsedBMMPath = result.GetRequiredValue(bmmPath);
+                var parsedBalatroSavesPath = result.GetRequiredValue(balatroSavePath);
+                var userTimeout = result.GetRequiredValue(timeOut);
+                BackupBalatroSaves(parsedBalatroSavesPath, guid);
+                // start balatro first with mods to refresh dump files
+                StartBalatroWithTimeout(userTimeout);
+                PrepareForSaveTransfer(parsedBalatroSavesPath, guid);
+                // TODO : create equivalent PS1 script for windows users
+                process.StartInfo.FileName = Path.Combine(parsedBMMPath,"compile_latest_apk.sh");
+                process.StartInfo.UseShellExecute = true;
+                process.Start();
+                // StreamWriter writer = process.StandardInput;
+                // foreach (var item in bmmOptions.ToCharArray())
+                // {
+                //     writer.Write($"{item}\n");
+                // }
+                process.WaitForExit();
+                Console.WriteLine($"Built balatro at path {Path.Join(parsedBMMPath, "balatro.apk")}");
+                // zip directory for use with the BM3 mobile app first
+                ZipBuiltFolder(parsedBalatroSavesPath, Path.Combine(exportSavesPath, $"Balatro {currentDate}-{guid}.zip"));
+                // then have script delete folder with GUID for current user.
+                CleanupAfterBuild(parsedBalatroSavesPath, guid);
+                return 0;
             }
-            process.WaitForExit();
-            Console.WriteLine($"Built balatro at path {Path.Join(parsedBMMPath, "balatro.apk")} from {parsedBalatroBinPath} ");
-            // in the future, have server delete folder with GUID for current user.
-            CleanupAfterBuild(parsedBalatroSavesPath,guid);
-            return 0;
-        }
-        else
-        {
-            foreach (var parseError in result.Errors)
+            else
             {
-                Console.Error.WriteLine(parseError.Message);
+                foreach (var parseError in result.Errors)
+                {
+                    Console.Error.WriteLine(parseError.Message);
+                }
+                return 1;
             }
-            return 1;
-        }
         }
         catch (InvalidOperationException)
         {
@@ -118,6 +157,64 @@ internal class Program
         }
     }
 
+    private static void EnsureSteamStarted()
+    {
+        // check first if steam is already running
+        Process[] processList = Process.GetProcessesByName("steam");
+        if (processList.Length > 0 )
+        {
+           // do nothing, steam is already running
+           return;
+        }
+        var process = new Process();
+        process.StartInfo.FileName = "steam";
+        process.StartInfo.UseShellExecute = true;
+        process.Start();
+    }
+    private static void ZipBuiltFolder(string userSavesPath, string exportSavesPath)
+    {
+        
+        ZipFile.CreateFromDirectory(userSavesPath,exportSavesPath,CompressionLevel.Optimal,false);
+    }
+
+    private static string CreateDirIfNotExists(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            Directory.CreateDirectory(path);
+        }
+        return path;
+    }
+
+    private static string GetBalatroDefaultSavePath()
+    {
+        var defaultSavePath = "";
+        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            // on linux, prepend default windows roaming path with prefix location 
+            defaultSavePath = $"{homeDir}/.steam/steam/steamapps/compatdata/2379780/pfx/drive_c/users/steamuser/AppData/Roaming/Balatro";
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var roamingDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            defaultSavePath = Path.Combine(roamingDir, "Balatro");
+        }
+
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            defaultSavePath = $"{homeDir}/Library/Application Support/Balatro";
+        }
+
+        if (string.IsNullOrEmpty(defaultSavePath))
+        {
+            throw new UnsupportedOSExecption("Cannot run script on this OS!");
+        }
+
+        return defaultSavePath;
+
+
+    }
 
     private static void PrepareForSaveTransfer(string ParsedBalatroSavePath, string guid)
     {
@@ -149,15 +246,17 @@ internal class Program
         var lovelyLuaPath = Path.Combine([currentSavePath, "lovely.lua"]);
         File.WriteAllText(lovelyLuaPath, $$"""
         return {
-        repo = "<https://github.com/ethangreen-dev/lovely-injector>",
+        repo = "https://github.com/ethangreen-dev/lovely-injector",
         version = "{{currentLovelyVersion}}",
-        mod_dir = "/data/data/com.unofficial.balatro/files/save/game/Mods",
+        mod_dir = "/data/data/com.unofficial.balatro/files/save/zip/Mods",
         }
         """);
         // create SMODS folder
         var smodsPath = Path.Combine([currentSavePath, "SMODS"]);
         Directory.CreateDirectory(smodsPath);
+        // Directory.Delete(smodsPath,true);
         // move release.lua and version.lua to smods folder in the root saves directory
+        // CopyDirectory(Path.Combine([modsDir, "Steamodded"]), smodsPath, true);
         File.Move(Path.Combine([modsDir, "Steamodded", "version.lua"]), balatroSavePathCombine("SMODS", "version.lua"));
         File.Move(Path.Combine([modsDir, "Steamodded", "release.lua"]), balatroSavePathCombine("SMODS", "release.lua"));
         // check if we have talisman
@@ -174,13 +273,13 @@ internal class Program
 
     }
 
-    private static void StartBalatroWithTimeout(int timeoutSeconds = 35)
+    private static void StartBalatroWithTimeout(int timeoutSeconds = 15)
     {
         var balatroProcess = new Process();
 
         balatroProcess.StartInfo.FileName = "steam";
         balatroProcess.StartInfo.UseShellExecute = true;
-        balatroProcess.StartInfo.Arguments = "-applaunch 2379780";
+        balatroProcess.StartInfo.Arguments = $"-applaunch {balatroAppID}";
         balatroProcess.Start();
         Thread.Sleep(TimeSpan.FromSeconds(timeoutSeconds));
         // after we wait for timeout, kill balatro process only
@@ -210,12 +309,16 @@ internal class Program
         var balatroSavePathInfo = new DirectoryInfo(parsedBalatroSavePath) ?? throw new Exception($"{parsedBalatroSavePath} is null or invalid! ");
         var pathParent = balatroSavePathInfo.Parent ?? throw new Exception($"{parsedBalatroSavePath} is null or invalid! ");
         var backupName = Path.Join(pathParent.FullName, $"{balatroSavePathInfo.Name} Copy {guid}");
+        var balatroTemp = Path.Combine( pathParent.FullName, "Balatro temp" );
         // swap balatro folder and backed up balatro folder quickly
-        
+
+        // we zipped main game folder in previous step, now we have to restore it
         // first move main balatro folder to temp copy
-        Directory.Move(parsedBalatroSavePath,Path.Join(pathParent.FullName, guid));
+        Directory.Move(parsedBalatroSavePath, balatroTemp);
         // then rename the backup to the main balatro folder
-        Directory.Move(backupName,parsedBalatroSavePath);
+        Directory.Move(backupName, parsedBalatroSavePath);
+        // finally, delete balatro temp to reduce bloat
+        Directory.Delete(balatroTemp,true);
     }
 
     // taken from MSDN
