@@ -1,33 +1,43 @@
 package com.modloader.bm3
 
 import android.os.Bundle
-import android.provider.DocumentsContract
-import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.unit.dp
+import com.modloader.bm3.ui.components.BottomNavBarItem
+import com.modloader.bm3.ui.components.ImageItem
+import com.modloader.bm3.ui.components.ResponsiveCardsSection
+import com.modloader.bm3.ui.features.ModsScreen
 import com.modloader.bm3.ui.theme.BM3Theme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,110 +47,93 @@ class MainActivity : ComponentActivity() {
                 BM3App()
             }
         }
-        // query lmm.shorty systems apk for files
-        lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                val loveFSAuthority = "systems.shorty.lmm.balatro"
-                val rootURI = DocumentsContract.buildChildDocumentsUri(loveFSAuthority,"")
-                try {
-                    val cursor = contentResolver.query(
-                        rootURI,
-                        arrayOf(
-                            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                            DocumentsContract.Document.COLUMN_MIME_TYPE,
-                            DocumentsContract.Document.COLUMN_DOCUMENT_ID
-                        ),
-                        null, null, null
-                    )
-
-                    cursor?.use {
-                        if (it.moveToFirst()) {
-                            val nameIdx =
-                                it.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                            val idIdx = it.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-
-                            // 3. Log what we found
-                            do {
-                                val name = it.getString(nameIdx)
-                                val docId = it.getString(idIdx)
-                                Log.d("LOVE_TEST", "Found: $name (ID: $docId)")
-                            } while (it.moveToNext())
-
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(
-                                    this@MainActivity,
-                                    "Found ${it.count} files in LÖVE!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } else {
-                            Log.w("LOVE_TEST", "Folder 'saves' found but is empty.")
-
-
-                        } ?: Log.e("LOVE_TEST", "Failed to query LÖVE provider. Is it installed?")
-                    }
-                }
-                catch (e : Exception) {
-                    Log.e("LOVE_TEST","Error: ${e.message}")
-                }
-            }
-
-        }
     }
 }
 
-@PreviewScreenSizes
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BM3App() {
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
+    Surface(
+        color = MaterialTheme.colorScheme.background
+    ) {
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
+        // rememberSaveable because it would be weird for navbar and drawer to change on rotation
+        var selectedDrawerIndex by rememberSaveable { mutableIntStateOf(0) }
+        var selectedNavBarItemIndex by rememberSaveable { mutableIntStateOf(0) }
+        val navBarItems = listOf(
+            BottomNavBarItem(
+                title = "Mods",
+                description = "Mods",
+                onSelectedIcon = painterResource(R.drawable.ic_grid_view_filled),
+                unselectedIcon = painterResource(R.drawable.ic_grid_view),
+                hasBadge = true
 
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            AppDestinations.entries.forEach {
-                item(
+            ),
+            BottomNavBarItem(
+                title = "Modpacks",
+                description = "Modpacks",
+                onSelectedIcon = painterResource(R.drawable.ic_stacks_filled),
+                unselectedIcon = painterResource(R.drawable.ic_stacks),
+                hasBadge = false
+            ),
+            BottomNavBarItem(
+                title = "Settings",
+                description = "Settings",
+                onSelectedIcon = painterResource(R.drawable.ic_settings_filled),
+                unselectedIcon = painterResource(R.drawable.ic_settings),
+                hasBadge = false
+            )
+        )
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+
+            drawerContent = {
+                ModalDrawerSheet {
+                }
+            },
+            gesturesEnabled = false,
+        ) { }
+        Scaffold(
+            content = { padding ->
+                ModsScreen(padding)
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    onClick = { /* TODO */ },
+                    text = { Text("Play Modded") },
                     icon = {
                         Icon(
-                            painterResource(it.icon),
-                            contentDescription = it.label
+                            painter = painterResource(R.drawable.ic_play),
+                            contentDescription = "Play Modded"
                         )
                     },
-                    label = { Text(it.label) },
-                    selected = it == currentDestination,
-                    onClick = { currentDestination = it }
                 )
+            },
+            bottomBar = {
+                NavigationBar {
+                    navBarItems.forEachIndexed { index, item ->
+                        NavigationBarItem(
+                            label = { Text(item.title) },
+                            selected = index == selectedNavBarItemIndex,
+                            onClick = {
+                                selectedNavBarItemIndex = index
+                            },
+                            icon = {
+                                Icon(
+                                    painter = if (index == selectedNavBarItemIndex) {
+                                        item.onSelectedIcon
+                                    } else {
+                                        item.unselectedIcon
+                                    }, contentDescription = item.description
+                                )
+                            },
+                        )
+                    }
+                }
             }
-        }
-    ) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Greeting(
-                name = "Android",
-                modifier = Modifier.padding(innerPadding)
-            )
-        }
+        )
     }
 }
 
-enum class AppDestinations(
-    val label: String,
-    val icon: Int,
-) {
-    HOME("Home", R.drawable.ic_home),
-    FAVORITES("Favorites", R.drawable.ic_favorite),
-    PROFILE("Profile", R.drawable.ic_account_box),
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    BM3Theme {
-        Greeting("Android")
-    }
-}
