@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+*.db
+/app/schemas/com.modloader.bm3.data.datasource.local.ModsDatabase/1.json

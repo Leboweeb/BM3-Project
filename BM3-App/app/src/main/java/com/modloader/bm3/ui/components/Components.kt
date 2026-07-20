@@ -84,20 +84,22 @@ fun ModCard(
                     contentDescription = imageItem.title,
                 )
             }
-
-            val decodedImageBytes = Base64.decode(imageItem.thumbnail, Base64.DEFAULT)
-            val decodedImageToString = String(decodedImageBytes)
-            if (Patterns.WEB_URL.matcher(decodedImageToString).matches()) {
-                AsyncImage(
-                    model = imageItem.thumbnail,
-                    contentDescription = imageItem.description
-                )
-            } else {
-                Image(
-                    bitmap = BitmapFactory.decodeByteArray(decodedImageBytes,0,decodedImageBytes.size).asImageBitmap(),
-                    contentDescription = imageItem.title,
-                )
+            else {
+                val decodedImageBytes = Base64.decode(imageItem.thumbnail, Base64.DEFAULT)
+                val decodedImageToString = String(decodedImageBytes)
+                if (Patterns.WEB_URL.matcher(decodedImageToString).matches()) {
+                    AsyncImage(
+                        model = imageItem.thumbnail,
+                        contentDescription = imageItem.description
+                    )
+                } else {
+                    Image(
+                        bitmap = BitmapFactory.decodeByteArray(decodedImageBytes,0,decodedImageBytes.size).asImageBitmap(),
+                        contentDescription = imageItem.title,
+                    )
+                }
             }
+
 
         }
         Column(
