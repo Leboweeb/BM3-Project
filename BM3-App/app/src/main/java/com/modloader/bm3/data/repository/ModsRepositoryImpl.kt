@@ -20,7 +20,8 @@ class ModsRepositoryImpl @Inject constructor(
         /**
         * <p> Keep in mind {@code page} <b>NEEDS</b> to be zero indexed!! </p>
         */
-        return modsDao.getAllModsPaginated(limit,page * limit).toDomain()
+        val mods = modsDao.getAllModsPaginated(limit,page * limit)
+        return mods.toDomain()
     }
 
     override suspend fun queryMods(query: String) : Flow<List<ModModel>>{

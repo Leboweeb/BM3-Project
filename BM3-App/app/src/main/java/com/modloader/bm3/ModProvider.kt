@@ -32,7 +32,7 @@ class ModProvider : ContentProvider() {
         private const val AUTHORITY = "com.modloader.bm3.modprovider"
         private const val LATEST_SAVE_URI = "latestSave"
         private const val LATEST_CONFIG_URI = "bm3Prefs"
-        private const val ISMODDEDKEY = "isModded"
+        private const val ISMODDED_KEY = "isModded"
         const val CODE_SAVE = 1
         const val CODE_PREFS = 2
         private val uriMatcher = UriMatcher(UriMatcher.NO_MATCH).apply {
@@ -85,9 +85,9 @@ class ModProvider : ContentProvider() {
                 // create temporary JSON file in cache
                 val prefs = getPrefs()
                 // create default key for vanilla/modded selector. Default is modded
-                if (!prefs.all.keys.contains(ISMODDEDKEY)) {
+                if (!prefs.all.keys.contains(ISMODDED_KEY)) {
                     prefs.edit {
-                        putBoolean(ISMODDEDKEY, true)
+                        putBoolean(ISMODDED_KEY, true)
                     }
                 }
                 val nonNullContext = context!!

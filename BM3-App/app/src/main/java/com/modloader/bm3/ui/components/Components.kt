@@ -1,7 +1,6 @@
 package com.modloader.bm3.ui.components
 
 import android.graphics.BitmapFactory
-import android.net.Uri
 import android.util.Base64
 import android.util.Patterns
 import androidx.compose.foundation.Image
@@ -34,8 +33,6 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.modloader.bm3.R
 import com.modloader.bm3.domain.model.ModModel
-import java.net.URI
-import androidx.core.net.toUri
 
 
 data class BottomNavBarItem(
