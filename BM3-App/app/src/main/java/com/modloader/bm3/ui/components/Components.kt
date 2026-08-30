@@ -4,7 +4,6 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import android.util.Patterns
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,10 +50,6 @@ data class BottomNavBarItem(
     val onSelectedIcon: Painter,
     val unselectedIcon: Painter,
     val hasBadge: Boolean
-)
-
-data class ImageItem(
-    val title: String, val description: String?, val thumbnail: String?
 )
 
 fun LazyGridScope.gridHeader(

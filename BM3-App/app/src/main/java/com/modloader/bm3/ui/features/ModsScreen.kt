@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,10 +28,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -45,6 +46,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.modloader.bm3.R
 import com.modloader.bm3.ui.components.BottomNavBarItem
+import com.modloader.bm3.ui.components.ModCard
 import com.modloader.bm3.ui.components.ResponsiveCardsSection
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -60,13 +62,13 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
         val sheetState = rememberModalBottomSheetState(
             skipPartiallyExpanded = true,
         )
-        var isBackHandlerEnabled by  rememberSaveable { mutableStateOf(true) }
+        var isBackHandlerEnabled by rememberSaveable { mutableStateOf(true) }
         val backHandlerCoroutineScope = rememberCoroutineScope()
         val modsScreenState by viewModel.modsScreenState.collectAsStateWithLifecycle()
         val mods = modsScreenState.mods
         val showBottomSheet = modsScreenState.isBottomSheetShown
         val searchBarQuery = modsScreenState.searchBarQuery
-        val context  = LocalContext.current
+        val context = LocalContext.current
         val focusManager = LocalFocusManager.current
         // rememberSaveable because it would be weird for navbar and drawer to change on rotation
         var isSearching by rememberSaveable { mutableStateOf(false) }
@@ -77,6 +79,8 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
         )
         val modsContainerPadding = 8.dp
         val searchBarPadding = 16.dp
+        val bottomSheetVerticalSpacing = 32.dp
+        val bottomSheetContainerAllPadding = 16.dp
         BackHandler(enabled = isSearching) {
             focusManager.clearFocus()
             // clear mods that come from search results because it is unexpected for users
@@ -186,10 +190,23 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                         onDismissRequest = {
                             viewModel.onDismissSheet()
                         }) {
-                        Text(
-                            "Swipe up to open sheet. Swipe down to dismiss.",
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        Column(
+                            modifier = Modifier.padding(bottomSheetContainerAllPadding),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(bottomSheetVerticalSpacing)
+                        ) {
+                            val currentMod = modsScreenState.currentModSelected
+                            if (currentMod == null) {
+                                Text(stringResource(R.string.no_mod_selected))
+                            } else {
+                                ModCard(currentMod, viewModel::onCardSelected)
+                                Text(
+                                    currentMod.description.orEmpty(),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+
+                        }
                     }
                 }
             }

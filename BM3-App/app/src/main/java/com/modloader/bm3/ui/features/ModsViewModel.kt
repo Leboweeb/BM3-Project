@@ -29,7 +29,7 @@ data class ModsScreenState(
     val errors: List<Exception>,
     // NEEDS TO BE ZERO INDEXED
     val currentPage: Int,
-    val currentCardSelected: Mod?
+    val currentModSelected: Mod?
 )
 
 @HiltViewModel
@@ -49,7 +49,7 @@ class ModsViewModel @Inject constructor(
             isBottomSheetShown = false,
             errors = listOf(),
             currentPage = 0,
-            currentCardSelected = null,
+            currentModSelected = null,
 
             )
     )
@@ -92,7 +92,7 @@ class ModsViewModel @Inject constructor(
     private fun setActiveMod(mod: Mod) {
         updateState {
             it.copy(
-                currentCardSelected = mod
+                currentModSelected = mod
             )
         }
     }
@@ -140,12 +140,12 @@ class ModsViewModel @Inject constructor(
                 Log.d("StateDebug", "Coroutine was canceled! Details below :\n ${e.message}")
             }
         }
-    };
+    }
 
     fun onDismissSheet() {
         updateState {
             it.copy(
-                currentCardSelected = null,
+                currentModSelected = null,
                 isBottomSheetShown = false
             )
         }

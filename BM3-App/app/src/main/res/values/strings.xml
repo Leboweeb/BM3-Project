@@ -3,4 +3,5 @@
     <string name="search_for_a_mod">Search for a mod…</string>
     <string name="download_mod">Download</string>
     <string name="mod_installed">Installed</string>
+    <string name="no_mod_selected">No mod selected or missing mod! Please contact the developer to resolve this issue.</string>
 </resources>
