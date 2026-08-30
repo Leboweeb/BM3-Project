@@ -1,16 +1,20 @@
 package com.modloader.bm3.ui.features
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -18,15 +22,19 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -38,30 +46,54 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.modloader.bm3.R
 import com.modloader.bm3.ui.components.BottomNavBarItem
 import com.modloader.bm3.ui.components.ResponsiveCardsSection
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
     Surface(
         color = MaterialTheme.colorScheme.background
     ) {
-
+        val sheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+        )
+        var isBackHandlerEnabled by  rememberSaveable { mutableStateOf(true) }
+        val backHandlerCoroutineScope = rememberCoroutineScope()
         val modsScreenState by viewModel.modsScreenState.collectAsStateWithLifecycle()
         val mods = modsScreenState.mods
+        val showBottomSheet = modsScreenState.isBottomSheetShown
         val searchBarQuery = modsScreenState.searchBarQuery
-        // rememberSaveable because it would be weird for navbar and drawer to change on rotation
+        val context  = LocalContext.current
         val focusManager = LocalFocusManager.current
+        // rememberSaveable because it would be weird for navbar and drawer to change on rotation
         var isSearching by rememberSaveable { mutableStateOf(false) }
         var selectedNavBarItemIndex by rememberSaveable { mutableIntStateOf(0) }
         val borderColor by animateColorAsState(
             targetValue = if (isSearching) MaterialTheme.colorScheme.primary else Color.Transparent,
             label = "SearchBarBorderColor"
         )
-        val modsContainerPadding = 16.dp
+        val modsContainerPadding = 8.dp
+        val searchBarPadding = 16.dp
         BackHandler(enabled = isSearching) {
             focusManager.clearFocus()
-            // clear mods that come from search results to fix bug that shows search results as installed mods.
+            // clear mods that come from search results because it is unexpected for users
             viewModel.resetMods()
+        }
+        // enable second back handler to take precedence over first
+        BackHandler(enabled = (!isSearching and isBackHandlerEnabled)) {
+            Toast.makeText(context, "Press back again to confirm", Toast.LENGTH_SHORT).show()
+
+            // Disable our handler so the VERY NEXT back press falls back to system back
+            isBackHandlerEnabled = false
+
+            // Re-enable after 2 seconds if the user didn't press back again
+            backHandlerCoroutineScope.launch {
+                delay(2000L.milliseconds)
+                isBackHandlerEnabled = true
+            }
         }
         val navBarItems = listOf(
             BottomNavBarItem(
@@ -86,7 +118,7 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
             )
         )
         Scaffold(topBar = {
-            Column (Modifier.padding(vertical = modsContainerPadding)) {
+            Column(Modifier.padding(vertical = searchBarPadding)) {
                 TextField(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -95,12 +127,9 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                         .onFocusChanged(
                             {
                                 isSearching = it.isFocused
-                            }
-                        )
+                            })
                         .border(
-                            width = 2.dp,
-                            color = borderColor,
-                            shape = CircleShape
+                            width = 2.dp, color = borderColor, shape = CircleShape
                         ),
                     value = searchBarQuery,
                     onValueChange = viewModel::onSearchTextChanged,
@@ -124,15 +153,44 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
             ) {
                 if (!isSearching) {
                     LazyColumn(
-                        modifier = Modifier.padding(8.dp)
+                        modifier = Modifier.padding(modsContainerPadding)
                     ) {
                         items(count = 1) {
-                            ResponsiveCardsSection("Installed Mods", modsScreenState.installedMods , padding)
-                            ResponsiveCardsSection("Disabled Mods", modsScreenState.disabledMods, padding)
+                            ResponsiveCardsSection(
+                                "Installed Mods",
+                                modsScreenState.installedMods,
+                                padding,
+                                viewModel::onCardSelected
+                            )
+                            ResponsiveCardsSection(
+                                "Disabled Mods",
+                                modsScreenState.disabledMods,
+                                padding,
+                                viewModel::onCardSelected
+                            )
+
                         }
                     }
                 } else {
-                    ResponsiveCardsSection(sectionTitle = "", mods = mods, paddingValues = padding)
+                    ResponsiveCardsSection(
+                        sectionTitle = "",
+                        mods = mods,
+                        paddingValues = padding,
+                        viewModel::onCardSelected
+                    )
+                }
+                if (showBottomSheet) {
+                    ModalBottomSheet(
+                        modifier = Modifier.fillMaxHeight(),
+                        sheetState = sheetState,
+                        onDismissRequest = {
+                            viewModel.onDismissSheet()
+                        }) {
+                        Text(
+                            "Swipe up to open sheet. Swipe down to dismiss.",
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 }
             }
         }, floatingActionButton = {

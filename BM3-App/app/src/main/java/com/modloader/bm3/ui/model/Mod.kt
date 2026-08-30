@@ -1,9 +1,6 @@
-package com.modloader.bm3.domain.model
+package com.modloader.bm3.ui.model
 
-import kotlinx.serialization.Serializable
-
-@Serializable
-data class ModModel (
+data class Mod(
     val id: Int,
     val title: String,
     val description: String?,
