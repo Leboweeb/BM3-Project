@@ -2,35 +2,34 @@ package com.modloader.bm3.data.repository
 
 import com.modloader.bm3.data.datasource.local.ModsDao
 import com.modloader.bm3.data.mapping.toDataLayer
-import com.modloader.bm3.domain.model.ModModel
-import com.modloader.bm3.domain.repository.ModsRepository
 import com.modloader.bm3.data.mapping.toDomain
+import com.modloader.bm3.domain.interfaces.repository.ModsRepository
+import com.modloader.bm3.domain.model.ModModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class ModsRepositoryImpl @Inject constructor(
     private val modsDao: ModsDao
-) : ModsRepository{
+) : ModsRepository {
 
+    /**
+     * <p> Keep in mind {@code page} <b>NEEDS</b> to be zero indexed!! </p>
+     */
     override suspend fun getMods(
         limit: Int,
         page: Int
     ): Flow<List<ModModel>> {
-        /**
-        * <p> Keep in mind {@code page} <b>NEEDS</b> to be zero indexed!! </p>
-        */
-        val mods = modsDao.getAllModsPaginated(limit,page * limit)
+        val mods = modsDao.getAllModsPaginated(limit, page * limit)
         return mods.toDomain()
     }
 
-    override suspend fun queryMods(query: String) : Flow<List<ModModel>>{
+    override suspend fun queryMods(query: String): Flow<List<ModModel>> {
         return modsDao.queryMod(query).toDomain()
     }
 
-    override suspend fun getModByID(id: Int) : Flow<ModModel?> {
-        return modsDao.getModByID(id).map {
-            mod ->
+    override suspend fun getModByID(id: Int): Flow<ModModel?> {
+        return modsDao.getModByID(id).map { mod ->
             mod?.toDomain()
         }
     }

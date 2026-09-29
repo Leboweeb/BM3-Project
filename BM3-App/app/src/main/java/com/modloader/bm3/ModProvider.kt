@@ -3,29 +3,22 @@ package com.modloader.bm3
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
-import android.content.SharedPreferences
 import android.content.UriMatcher
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
+import androidx.core.content.edit
+import com.modloader.bm3.utils.ModProviderStringKeys
+import com.modloader.bm3.utils.getPrefs
+import org.json.JSONObject
 import java.io.File
 import java.io.FileNotFoundException
-import androidx.core.content.edit
-import org.json.JSONObject
 
 
 class ModProvider : ContentProvider() {
 
-
-    private enum class StringKeys(s: String) {
-        SharedPrefsKey("com.modloader.bm3"), CurrentSaveKey("currentSave");
-
-        val string: String = s
-    }
-
-    private class SharedPreferencesNullException(override val message: String?) : Exception(message)
 
     companion object {
         // TODO : make contract class for URIs 
@@ -55,13 +48,6 @@ class ModProvider : ContentProvider() {
 
     // actually useful overrides
 
-    private fun getPrefs(): SharedPreferences {
-        val prefs =
-            context?.getSharedPreferences(StringKeys.SharedPrefsKey.string, Context.MODE_PRIVATE)
-                ?: throw SharedPreferencesNullException("Shared preferences is null, context is $context")
-        return prefs
-
-    }
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor? {
         when (uriMatcher.match(uri)) {
@@ -83,7 +69,7 @@ class ModProvider : ContentProvider() {
 
             CODE_PREFS -> {
                 // create temporary JSON file in cache
-                val prefs = getPrefs()
+                val prefs = getPrefs(context)
                 // create default key for vanilla/modded selector. Default is modded
                 if (!prefs.all.keys.contains(ISMODDED_KEY)) {
                     prefs.edit {
@@ -107,12 +93,12 @@ class ModProvider : ContentProvider() {
             return null
         }
         val sharedPrefs =
-            context!!.getSharedPreferences(StringKeys.SharedPrefsKey.string, Context.MODE_PRIVATE)
-        var currentSaveName = sharedPrefs.getString(StringKeys.CurrentSaveKey.string, "") ?: ""
+            context!!.getSharedPreferences(ModProviderStringKeys.SharedPrefsKey.string, Context.MODE_PRIVATE)
+        var currentSaveName = sharedPrefs.getString(ModProviderStringKeys.CurrentSaveKey.string, "") ?: ""
         if (currentSaveName.isBlank()) {
             val firstFile = context!!.cacheDir?.listFiles()?.elementAtOrNull(0) ?: return null
             // if no file in shared prefs, put first found zip file in shared prefs instead
-            sharedPrefs.edit { putString(StringKeys.CurrentSaveKey.string, firstFile.name) }
+            sharedPrefs.edit { putString(ModProviderStringKeys.CurrentSaveKey.string, firstFile.name) }
             currentSaveName = firstFile.name
         }
         return File(context!!.cacheDir, currentSaveName)

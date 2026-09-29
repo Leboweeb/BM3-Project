@@ -1,7 +1,13 @@
 package com.modloader.bm3.ui.features
 
+import android.Manifest
+import android.content.ClipData
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -19,15 +25,21 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -35,6 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -42,12 +56,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.modloader.bm3.R
 import com.modloader.bm3.ui.components.BottomNavBarItem
 import com.modloader.bm3.ui.components.ModCard
 import com.modloader.bm3.ui.components.ResponsiveCardsSection
+import com.modloader.bm3.ui.model.Mod
+import com.modloader.bm3.utils.getDefaultModDownloadsFolder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
@@ -62,13 +79,38 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
         val sheetState = rememberModalBottomSheetState(
             skipPartiallyExpanded = true,
         )
+        val context = LocalContext.current
+        // Source - https://stackoverflow.com/a/79111223
+        // Posted by Thracian
+        // Retrieved 2026-09-26, License - CC BY-SA 4.0
+        var hasNotificationPermission by remember {
+            mutableStateOf(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                } else false
+            )
+        }
+        val notificationActivityLauncher =
+            rememberLauncherForActivityResult(contract = ActivityResultContracts.RequestPermission()) { result ->
+                hasNotificationPermission = result
+            }
+
+        val copyErrorButtonLabelText = stringResource(R.string.copy_error_button_label)
+        val copyErrorLabel = stringResource(R.string.copy_error_clipdata_label)
+        val clipBoard = LocalClipboard.current
+        val snackBarState = remember { SnackbarHostState() }
+        val snackBarScope = rememberCoroutineScope()
         var isBackHandlerEnabled by rememberSaveable { mutableStateOf(true) }
         val backHandlerCoroutineScope = rememberCoroutineScope()
         val modsScreenState by viewModel.modsScreenState.collectAsStateWithLifecycle()
         val mods = modsScreenState.mods
+        val errors = modsScreenState.errors
         val showBottomSheet = modsScreenState.isBottomSheetShown
         val searchBarQuery = modsScreenState.searchBarQuery
-        val context = LocalContext.current
         val focusManager = LocalFocusManager.current
         // rememberSaveable because it would be weird for navbar and drawer to change on rotation
         var isSearching by rememberSaveable { mutableStateOf(false) }
@@ -81,9 +123,17 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
         val searchBarPadding = 16.dp
         val bottomSheetVerticalSpacing = 32.dp
         val bottomSheetContainerAllPadding = 16.dp
+        val downloadInCache: (Mod) -> Unit = { mod ->
+            if (!hasNotificationPermission) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationActivityLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+            viewModel.onStartModDownload(getDefaultModDownloadsFolder(context), mod)
+        }
         BackHandler(enabled = isSearching) {
             focusManager.clearFocus()
-            // clear mods that come from search results because it is unexpected for users
+            // clear mods that come from search results when exiting search because it is unexpected for users
             viewModel.resetMods()
         }
         // enable second back handler to take precedence over first
@@ -121,17 +171,18 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                 hasBadge = false
             )
         )
-        Scaffold(topBar = {
+        Scaffold(snackbarHost = {
+            SnackbarHost(snackBarState)
+        }, topBar = {
             Column(Modifier.padding(vertical = searchBarPadding)) {
                 TextField(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
                         .semantics { traversalIndex = 0f }
-                        .onFocusChanged(
-                            {
-                                isSearching = it.isFocused
-                            })
+                        .onFocusChanged {
+                            isSearching = it.isFocused
+                        }
                         .border(
                             width = 2.dp, color = borderColor, shape = CircleShape
                         ),
@@ -164,13 +215,19 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                                 "Installed Mods",
                                 modsScreenState.installedMods,
                                 padding,
-                                viewModel::onCardSelected
+                                viewModel::onCardSelected,
+                                downloadInCache,
+                                viewModel::onFinishDownload,
+                                viewModel::getDownloadProgress,
                             )
                             ResponsiveCardsSection(
                                 "Disabled Mods",
                                 modsScreenState.disabledMods,
                                 padding,
-                                viewModel::onCardSelected
+                                viewModel::onCardSelected,
+                                downloadInCache,
+                                viewModel::onFinishDownload,
+                                viewModel::getDownloadProgress,
                             )
 
                         }
@@ -180,8 +237,12 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                         sectionTitle = "",
                         mods = mods,
                         paddingValues = padding,
-                        viewModel::onCardSelected
-                    )
+                        viewModel::onCardSelected,
+                        downloadInCache,
+                        viewModel::onFinishDownload,
+                        viewModel::getDownloadProgress,
+
+                        )
                 }
                 if (showBottomSheet) {
                     ModalBottomSheet(
@@ -193,19 +254,54 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                         Column(
                             modifier = Modifier.padding(bottomSheetContainerAllPadding),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(bottomSheetVerticalSpacing)
+                            verticalArrangement = Arrangement.spacedBy(
+                                bottomSheetVerticalSpacing
+                            )
                         ) {
                             val currentMod = modsScreenState.currentModSelected
                             if (currentMod == null) {
                                 Text(stringResource(R.string.no_mod_selected))
                             } else {
-                                ModCard(currentMod, viewModel::onCardSelected)
+                                ModCard(
+                                    currentMod,
+                                    viewModel::onCardSelected,
+                                    downloadInCache,
+                                    viewModel::onFinishDownload,
+                                    viewModel.getDownloadProgress(currentMod),
+                                )
                                 Text(
                                     currentMod.description.orEmpty(),
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
 
+                        }
+                    }
+                }
+                LaunchedEffect(key1 = errors) {
+                    if (errors.isNotEmpty()) {
+                        for (e in errors) {
+                            snackBarScope.launch {
+                                val result = snackBarState.showSnackbar(
+                                    e.message ?: "${e.stackTrace}",
+                                    duration = SnackbarDuration.Long,
+                                    actionLabel = copyErrorButtonLabelText
+                                )
+                                when (result) {
+                                    SnackbarResult.ActionPerformed -> {
+                                        val clipData = ClipData.newPlainText(
+                                            copyErrorLabel,
+                                            snackBarState.currentSnackbarData?.visuals?.message
+                                                ?: ""
+                                        )
+                                        val clipEntry = ClipEntry(clipData)
+                                        clipBoard.setClipEntry(clipEntry)
+                                    }
+
+                                    else -> {
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -222,8 +318,7 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                 },
             )
         }, bottomBar = {
-            NavigationBar(
-            ) {
+            NavigationBar {
                 navBarItems.forEachIndexed { index, item ->
                     NavigationBarItem(
                         label = { Text(item.title) },

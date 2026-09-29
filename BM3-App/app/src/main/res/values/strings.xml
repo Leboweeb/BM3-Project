@@ -4,4 +4,6 @@
     <string name="download_mod">Download</string>
     <string name="mod_installed">Installed</string>
     <string name="no_mod_selected">No mod selected or missing mod! Please contact the developer to resolve this issue.</string>
+    <string name="copy_error_button_label">Copy</string>
+    <string name="copy_error_clipdata_label">Copy Stacktrace</string>
 </resources>

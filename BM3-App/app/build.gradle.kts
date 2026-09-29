@@ -1,14 +1,10 @@
-import org.gradle.kotlin.dsl.androidTestAnnotationProcessor
-import org.gradle.kotlin.dsl.androidTestImplementation
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.androidx.room)
-    // kotlinx serialization
-    kotlin("plugin.serialization") version "2.4.0"
-    id("com.google.devtools.ksp")
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 room {
@@ -87,10 +83,14 @@ dependencies {
     implementation(libs.androidx.hilt.lifecycle.viewmodel)
     ksp(libs.hilt.compiler)
 
+    // ketch lib
+    implementation(libs.ketch)
+
     testImplementation(libs.junit)
+    testImplementation(libs.turbine)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -21,10 +22,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -41,7 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.modloader.bm3.R
+import com.modloader.bm3.ui.model.DownloadInfo
 import com.modloader.bm3.ui.model.Mod
+import com.modloader.bm3.utils.DownloadStatus
 
 
 data class BottomNavBarItem(
@@ -62,6 +65,9 @@ fun LazyGridScope.gridHeader(
 fun ModCard(
     mod: Mod,
     onCardSelected: (Mod) -> Unit,
+    onDownloadClicked: (Mod) -> Unit,
+    onModCompleted: (Mod) -> Unit,
+    downloadInfo: DownloadInfo?,
     maxHeight: Int = 300,
     maxWidth: Int = 300,
 ) {
@@ -71,7 +77,7 @@ fun ModCard(
             .widthIn(0.dp, maxWidth.dp)
             .heightIn(0.dp, maxHeight.dp),
         // toggle bottom sheet on click
-        onClick = { onCardSelected(mod)} ) {
+        onClick = { onCardSelected(mod) }) {
         Column {
 
             Column(
@@ -127,55 +133,78 @@ fun ModCard(
 
                 ) {
 
-                Button(
-                    modifier = if (!mod.isInstalled) {
-                        Modifier.fillMaxWidth()
-                    } else {
-                        Modifier
-                    }.padding(horizontal = 16.dp),
-                    onClick = {},
-                    enabled = !mod.isInstalled,
-                ) {
-                    if (mod.isInstalled or mod.isDisabled) {
-                        Text(stringResource(R.string.mod_installed))
-                    } else {
-                        Text(stringResource(R.string.download_mod))
-                    }
 
-                }
-                if (mod.isInstalled) {
-                    Switch(
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                        checked = !mod.isDisabled, onCheckedChange = {},
-                    )
-                    IconButton(
-                        onClick = {}, shape = RoundedCornerShape(50), colors = IconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.error,
-                            disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            disabledContentColor = MaterialTheme.colorScheme.secondary
+                downloadInfo?.let {
+                    if (downloadInfo.state == DownloadStatus.SUCCESS) {
+                        onModCompleted(mod)
+                    }
+                    if (downloadInfo.state !in listOf(
+                            DownloadStatus.QUEUED,
+                            DownloadStatus.FAILED
                         )
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_delete_outline),
-                            contentDescription = "Delete mod ${mod.title}"
+                        LinearProgressIndicator(
+                            progress = { (downloadInfo.progress / 100.0f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
                         )
                     }
                 }
-
             }
         }
-    }
 
+        Button(
+            modifier = if (!mod.isInstalled) {
+                Modifier.fillMaxWidth()
+            } else {
+                Modifier
+            }.padding(horizontal = 16.dp),
+            onClick = {
+                onDownloadClicked(mod)
+            },
+            enabled = !(mod.isInstalled or mod.isDownloading),
+        ) {
+            if (mod.isInstalled or mod.isDisabled) {
+                Text(stringResource(R.string.mod_installed))
+            } else {
+                Text(stringResource(R.string.download_mod))
+            }
+
+        }
+        if (mod.isInstalled) {
+            Switch(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                checked = !mod.isDisabled, onCheckedChange = {},
+            )
+            IconButton(
+                onClick = {}, shape = RoundedCornerShape(50), colors = IconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.error,
+                    disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    disabledContentColor = MaterialTheme.colorScheme.secondary
+                )
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete_outline),
+                    contentDescription = "Delete mod ${mod.title}"
+                )
+            }
+        }
+
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
 fun ResponsiveCardsSection(
     sectionTitle: String,
     mods: List<Mod>,
     paddingValues: PaddingValues,
-    onCardSelected : (Mod) -> Unit,
+    onCardSelected: (Mod) -> Unit,
+    onDownloadClicked: (Mod) -> Unit,
+    onModCompleted: (Mod) -> Unit,
+    getDownloadProgress: (Mod) -> DownloadInfo?,
     maxHeight: Dp = 1000.dp,
 ) {
     Column(
@@ -192,7 +221,10 @@ fun ResponsiveCardsSection(
             items(mods, key = { mod -> mod.id }) { mod ->
                 ModCard(
                     mod,
-                    onCardSelected
+                    onCardSelected,
+                    onDownloadClicked,
+                    onModCompleted,
+                    getDownloadProgress(mod),
                 )
             }
         }

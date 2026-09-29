@@ -1,7 +1,7 @@
 package com.modloader.bm3.domain.usecases
 
+import com.modloader.bm3.domain.interfaces.repository.ModsRepository
 import com.modloader.bm3.domain.model.ModModel
-import com.modloader.bm3.domain.repository.ModsRepository
 import com.modloader.bm3.utils.PAGINATION_LIMIT
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -16,7 +16,7 @@ class GetModsUseCase @Inject constructor(
         page: Int = 0,
         filter: (ModModel) -> Boolean
     ): Flow<List<ModModel>> {
-        val mods = repo.getMods(limit,page )
+        val mods = repo.getMods(limit, page)
         return mods
             .map {
                 it.filter { modModel -> filter(modModel) }
