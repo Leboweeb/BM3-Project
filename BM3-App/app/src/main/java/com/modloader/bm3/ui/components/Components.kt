@@ -154,41 +154,47 @@ fun ModCard(
             }
         }
 
-        Button(
-            modifier = if (!mod.isInstalled) {
-                Modifier.fillMaxWidth()
-            } else {
-                Modifier
-            }.padding(horizontal = 16.dp),
-            onClick = {
-                onDownloadClicked(mod)
-            },
-            enabled = !(mod.isInstalled or mod.isDownloading),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (mod.isInstalled or mod.isDisabled) {
-                Text(stringResource(R.string.mod_installed))
-            } else {
-                Text(stringResource(R.string.download_mod))
-            }
-
-        }
-        if (mod.isInstalled) {
-            Switch(
-                modifier = Modifier.padding(horizontal = 4.dp),
-                checked = !mod.isDisabled, onCheckedChange = {},
-            )
-            IconButton(
-                onClick = {}, shape = RoundedCornerShape(50), colors = IconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.error,
-                    disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    disabledContentColor = MaterialTheme.colorScheme.secondary
-                )
+            Button(
+                modifier = if (!mod.isInstalled) {
+                    Modifier.fillMaxWidth()
+                } else {
+                    Modifier
+                }.padding(horizontal = 16.dp),
+                onClick = {
+                    onDownloadClicked(mod)
+                },
+                enabled = !(mod.isInstalled or mod.isDownloading),
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_delete_outline),
-                    contentDescription = "Delete mod ${mod.title}"
+                if (mod.isInstalled or mod.isDisabled) {
+                    Text(stringResource(R.string.mod_installed))
+                } else {
+                    Text(stringResource(R.string.download_mod))
+                }
+
+            }
+            if (mod.isInstalled) {
+                Switch(
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    checked = !mod.isDisabled, onCheckedChange = {},
                 )
+                IconButton(
+                    onClick = {}, shape = RoundedCornerShape(50), colors = IconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.error,
+                        disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        disabledContentColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_delete_outline),
+                        contentDescription = "Delete mod ${mod.title}"
+                    )
+                }
             }
         }
 
