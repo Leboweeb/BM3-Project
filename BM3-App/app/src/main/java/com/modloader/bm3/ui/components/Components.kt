@@ -66,7 +66,6 @@ fun ModCard(
     mod: Mod,
     onCardSelected: (Mod) -> Unit,
     onDownloadClicked: (Mod) -> Unit,
-    onModCompleted: (Mod) -> Unit,
     downloadInfo: DownloadInfo?,
     maxHeight: Int = 300,
     maxWidth: Int = 300,
@@ -135,9 +134,6 @@ fun ModCard(
 
 
                 downloadInfo?.let {
-                    if (downloadInfo.state == DownloadStatus.SUCCESS) {
-                        onModCompleted(mod)
-                    }
                     if (downloadInfo.state !in listOf(
                             DownloadStatus.QUEUED,
                             DownloadStatus.FAILED
@@ -209,7 +205,6 @@ fun ResponsiveCardsSection(
     paddingValues: PaddingValues,
     onCardSelected: (Mod) -> Unit,
     onDownloadClicked: (Mod) -> Unit,
-    onModCompleted: (Mod) -> Unit,
     getDownloadProgress: (Mod) -> DownloadInfo?,
     maxHeight: Dp = 1000.dp,
 ) {
@@ -229,7 +224,6 @@ fun ResponsiveCardsSection(
                     mod,
                     onCardSelected,
                     onDownloadClicked,
-                    onModCompleted,
                     getDownloadProgress(mod),
                 )
             }

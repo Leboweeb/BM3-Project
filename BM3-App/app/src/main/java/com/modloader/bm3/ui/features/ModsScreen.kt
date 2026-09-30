@@ -217,7 +217,6 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                                 padding,
                                 viewModel::onCardSelected,
                                 downloadInCache,
-                                viewModel::onFinishDownload,
                                 viewModel::getDownloadProgress,
                             )
                             ResponsiveCardsSection(
@@ -226,7 +225,6 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                                 padding,
                                 viewModel::onCardSelected,
                                 downloadInCache,
-                                viewModel::onFinishDownload,
                                 viewModel::getDownloadProgress,
                             )
 
@@ -239,7 +237,6 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                         paddingValues = padding,
                         viewModel::onCardSelected,
                         downloadInCache,
-                        viewModel::onFinishDownload,
                         viewModel::getDownloadProgress,
 
                         )
@@ -266,7 +263,6 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                                     currentMod,
                                     viewModel::onCardSelected,
                                     downloadInCache,
-                                    viewModel::onFinishDownload,
                                     viewModel.getDownloadProgress(currentMod),
                                 )
                                 Text(

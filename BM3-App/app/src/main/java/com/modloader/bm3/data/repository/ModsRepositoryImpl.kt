@@ -43,6 +43,6 @@ class ModsRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateMod(mod: ModModel) {
-        modsDao.updateMod(mod.toDataLayer())
+        return modsDao.updateMod(mod.toDataLayer())
     }
 }

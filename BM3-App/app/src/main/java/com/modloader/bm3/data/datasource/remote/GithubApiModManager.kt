@@ -95,17 +95,18 @@ class GithubApiModManager
         modUrl: String,
         outFileName: String
     ): Flow<DownloadInfoModel> {
-        val file = File(outDir, outFileName)
-        if (!file.exists()) {
+        val file = File(outDir, "$outFileName.zip")
+        if (!outDir.exists()) {
             // ensures mods dir file is created first
             withContext(Dispatchers.IO) {
-                file.mkdirs()
-                file.createNewFile()
+                outDir.mkdirs()
             }
         }
 
         val downloadID =
-            ketchInstance.download(url = modUrl, path = outDir.toString(), fileName = outFileName)
+            ketchInstance.download(
+                url = modUrl, path = outDir.toString(), fileName = file.name
+            )
         return ketchInstance.observeDownloadById(downloadID).filterNotNull().map {
             it.toDomain()
         }

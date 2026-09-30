@@ -216,6 +216,9 @@ class ModsViewModel @Inject constructor(
                 outFileName = mod.title
             )
             downloadProgressFlow.collect { downloadInfo ->
+                if (downloadInfo.state == DownloadStatus.SUCCESS) {
+                    onFinishDownload(mod)
+                }
                 if (downloadInfo.state == DownloadStatus.FAILED) {
                     addError(IOException(downloadInfo.failureReason))
                     modManager.clearFailedDownload(downloadInfo.id)
@@ -243,7 +246,8 @@ class ModsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             updateMod(mod) {
                 it.copy(
-                    isDownloading = false
+                    isDownloading = false,
+                    isInstalled = true
                 )
             }
             markModInstalledUseCase(mod.toDomain())
