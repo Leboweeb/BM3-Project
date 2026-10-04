@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.modloader.bm3.R
 import com.modloader.bm3.ui.components.BottomNavBarItem
 import com.modloader.bm3.ui.components.ModCard
+import com.modloader.bm3.ui.components.ModCardHandler
 import com.modloader.bm3.ui.components.ResponsiveCardsSection
 import com.modloader.bm3.ui.model.Mod
 import com.modloader.bm3.utils.getDefaultModDownloadsFolder
@@ -131,6 +132,19 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
             }
             viewModel.onStartModDownload(getDefaultModDownloadsFolder(context), mod)
         }
+        val modCollectionHandler = ModCardHandler(
+            onCardSelected = viewModel::onCardSelected,
+            onDownload = downloadInCache,
+            onDisableMod = viewModel::onDisableMod,
+            onEnableMod = viewModel::onEnableMod,
+            onRemoveMod = { mod ->
+                viewModel.onRemoveMod(
+                    mod,
+                    getDefaultModDownloadsFolder(context),
+                )
+            },
+            downloadInfo = viewModel::getDownloadProgress,
+        )
         BackHandler(enabled = isSearching) {
             focusManager.clearFocus()
             // clear mods that come from search results when exiting search because it is unexpected for users
@@ -215,17 +229,13 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                                 "Installed Mods",
                                 modsScreenState.installedMods,
                                 padding,
-                                viewModel::onCardSelected,
-                                downloadInCache,
-                                viewModel::getDownloadProgress,
+                                handler = modCollectionHandler
                             )
                             ResponsiveCardsSection(
                                 "Disabled Mods",
                                 modsScreenState.disabledMods,
                                 padding,
-                                viewModel::onCardSelected,
-                                downloadInCache,
-                                viewModel::getDownloadProgress,
+                                handler = modCollectionHandler,
                             )
 
                         }
@@ -235,11 +245,8 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                         sectionTitle = "",
                         mods = mods,
                         paddingValues = padding,
-                        viewModel::onCardSelected,
-                        downloadInCache,
-                        viewModel::getDownloadProgress,
-
-                        )
+                        handler = modCollectionHandler,
+                    )
                 }
                 if (showBottomSheet) {
                     ModalBottomSheet(
@@ -261,9 +268,7 @@ fun ModsScreen(viewModel: ModsViewModel = hiltViewModel()) {
                             } else {
                                 ModCard(
                                     currentMod,
-                                    viewModel::onCardSelected,
-                                    downloadInCache,
-                                    viewModel.getDownloadProgress(currentMod),
+                                    modCollectionHandler
                                 )
                                 Text(
                                     currentMod.description.orEmpty(),

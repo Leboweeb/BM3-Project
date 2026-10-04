@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.modloader.bm3.domain.interfaces.modManager.ModManager
 import com.modloader.bm3.domain.usecases.GetModsUseCase
-import com.modloader.bm3.domain.usecases.MarkModInstalledUseCase
+import com.modloader.bm3.domain.usecases.ModStatusUseCase
 import com.modloader.bm3.ui.mapping.toDomain
 import com.modloader.bm3.ui.mapping.toUIModel
 import com.modloader.bm3.ui.mapping.toUIModels
@@ -42,11 +42,12 @@ data class ModsScreenState(
     val downloads: Map<Mod, DownloadInfo>
 )
 
+
 @HiltViewModel
 class ModsViewModel @Inject constructor(
     private val modManager: ModManager,
     private val getModsUseCase: GetModsUseCase,
-    private val markModInstalledUseCase: MarkModInstalledUseCase
+    private val modStatusUseCase: ModStatusUseCase,
 ) : ViewModel() {
 
 
@@ -129,7 +130,7 @@ class ModsViewModel @Inject constructor(
     // this is stupid yes, but I couldn't find a way to
     // elegantly represent this with a lambda
     fun findMods(query: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             try {
                 getModsUseCase(
                     page = _modsScreenState.value.currentPage,
@@ -157,7 +158,7 @@ class ModsViewModel @Inject constructor(
                     filter = { it.isInstalled or it.isDisabled }).collect { modModels ->
                     _modsScreenState.update { prevState ->
 
-                        val installedMods = modModels.filter { it.isInstalled }
+                        val installedMods = modModels.filter { it.isInstalled and !it.isDisabled }
                         val disabledMods = modModels.filter { it.isDisabled }
                         prevState.copy(
                             installedMods = installedMods.toUIModels(),
@@ -203,39 +204,43 @@ class ModsViewModel @Inject constructor(
 
     // get modsDir from the compose UI layer using LocalContext and getDefaultModsFolder
     /**
-     * Downloads mod and marks the UI model [Mod] as currently being downloaded, also clears failed downloads so called doesn't have to handle them.
+     * Downloads mod and marks the UI model [Mod] as currently being downloaded, also clears failed downloads so caller doesn't have to handle them.
      *
-     * **WARNING** : this function also indirectly modifies the [Mod.isDownloading] field.
+     * **WARNING** : this function also modifies the [Mod.isDownloading] field.
      */
     fun onStartModDownload(outDir: File, mod: Mod) {
         setModIsDownloading(mod)
-        viewModelScope.launch(Dispatchers.IO) {
-            val downloadProgressFlow = modManager.downloadMod(
-                outDir,
-                modUrl = mod.url,
-                outFileName = mod.title
-            )
-            downloadProgressFlow.collect { downloadInfo ->
-                if (downloadInfo.state == DownloadStatus.SUCCESS) {
-                    onFinishDownload(mod)
-                }
-                if (downloadInfo.state == DownloadStatus.FAILED) {
-                    addError(IOException(downloadInfo.failureReason))
-                    modManager.clearFailedDownload(downloadInfo.id)
-                    if (mod.isDownloading) {
-                        updateMod(mod) {
-                            it.copy(
-                                isDownloading = false
-                            )
-                        }
+        viewModelScope.launch {
+            try {
+                val downloadProgressFlow = modManager.downloadMod(
+                    outDir,
+                    modUrl = mod.url,
+                    outFileName = mod.title
+                )
+                downloadProgressFlow.collect { downloadInfo ->
+                    if (downloadInfo.state == DownloadStatus.SUCCESS) {
+                        onFinishDownload(mod)
                     }
-                    return@collect
+                    if (downloadInfo.state == DownloadStatus.FAILED) {
+                        addError(IOException(downloadInfo.failureReason))
+                        modManager.clearFailedDownload(downloadInfo.id)
+                        if (mod.isDownloading) {
+                            updateMod(mod) {
+                                it.copy(
+                                    isDownloading = false
+                                )
+                            }
+                        }
+                        return@collect
+                    }
+                    updateState {
+                        it.copy(
+                            downloads = it.downloads + (mod to downloadInfo.toUIModel())
+                        )
+                    }
                 }
-                updateState {
-                    it.copy(
-                        downloads = it.downloads + (mod to downloadInfo.toUIModel())
-                    )
-                }
+            } catch (e: IOException) {
+                addError(e)
             }
         }
 
@@ -243,14 +248,35 @@ class ModsViewModel @Inject constructor(
     }
 
     fun onFinishDownload(mod: Mod) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             updateMod(mod) {
                 it.copy(
                     isDownloading = false,
                     isInstalled = true
                 )
             }
-            markModInstalledUseCase(mod.toDomain())
+            modStatusUseCase.markModInstalled(mod.toDomain())
+        }
+    }
+
+    fun onDisableMod(mod: Mod) {
+        viewModelScope.launch {
+            modStatusUseCase.disableMod(mod.toDomain())
+        }
+    }
+
+    fun onEnableMod(mod: Mod) {
+        viewModelScope.launch(Dispatchers.IO) {
+            modStatusUseCase.enableMod(mod.toDomain())
+        }
+    }
+
+    fun onRemoveMod(mod: Mod, modsDir: File) {
+        viewModelScope.launch {
+            modStatusUseCase.removeMod(
+                mod.toDomain(),
+                modFile = File(modsDir, "${mod.title}.zip")
+            )
         }
     }
 

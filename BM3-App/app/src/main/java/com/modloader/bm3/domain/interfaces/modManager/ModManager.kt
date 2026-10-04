@@ -11,13 +11,14 @@ interface ModManager {
         modUrl: String,
         outFileName: String
     ): Flow<DownloadInfoModel>
+//    suspend fun removeMod(
+//        modsDir: File, fileName: String
+//    )
 
-    suspend fun removeMod(
-        modsDir: File, fileName: String
-    )
-
-    suspend fun getDownloadingMods(): List<DownloadInfoModel>
+//    suspend fun getDownloadingMods(): List<DownloadInfoModel>
 
     suspend fun clearFailedDownload(id: Int)
+
+//    suspend fun disableMod(modsDir: File, fileName: String)
 
 }

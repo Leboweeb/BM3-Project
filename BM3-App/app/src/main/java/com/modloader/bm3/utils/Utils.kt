@@ -19,6 +19,7 @@ enum class ModProviderStringKeys(s: String) {
     val string: String = s
 }
 
+
 private class SharedPreferencesNullException(override val message: String?) : Exception(message)
 
 class ModNotFoundException(override val message: String?) : Exception(message)
@@ -64,7 +65,7 @@ fun showToast(context: Context, text: String?) {
 
 
 fun getDefaultModDownloadsFolder(context: Context): File {
-    return File(context.cacheDir, "mods")
+    return File(context.cacheDir, MODS_FOLDER_NAME)
 }
 
 fun zipFilesAndFoldersWithoutRoot(directoryToZip: File, destinationFile: File) {

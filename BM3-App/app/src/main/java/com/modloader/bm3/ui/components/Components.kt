@@ -55,6 +55,15 @@ data class BottomNavBarItem(
     val hasBadge: Boolean
 )
 
+data class ModCardHandler(
+    val onCardSelected: (Mod) -> Unit,
+    val onDownload: (Mod) -> Unit,
+    val onDisableMod: (Mod) -> Unit,
+    val onEnableMod: (Mod) -> Unit,
+    val onRemoveMod: (Mod) -> Unit,
+    val downloadInfo: (Mod) -> DownloadInfo?,
+)
+
 fun LazyGridScope.gridHeader(
     content: @Composable LazyGridItemScope.() -> Unit
 ) {
@@ -64,19 +73,18 @@ fun LazyGridScope.gridHeader(
 @Composable
 fun ModCard(
     mod: Mod,
-    onCardSelected: (Mod) -> Unit,
-    onDownloadClicked: (Mod) -> Unit,
-    downloadInfo: DownloadInfo?,
+    handler: ModCardHandler,
     maxHeight: Int = 300,
     maxWidth: Int = 300,
 ) {
+    val downloadInfo = handler.downloadInfo(mod)
     Card(
         modifier = Modifier
             .padding(8.dp)
             .widthIn(0.dp, maxWidth.dp)
             .heightIn(0.dp, maxHeight.dp),
         // toggle bottom sheet on click
-        onClick = { onCardSelected(mod) }) {
+        onClick = { handler.onCardSelected(mod) }) {
         Column {
 
             Column(
@@ -162,7 +170,7 @@ fun ModCard(
                     Modifier
                 }.padding(horizontal = 16.dp),
                 onClick = {
-                    onDownloadClicked(mod)
+                    handler.onDownload(mod)
                 },
                 enabled = !(mod.isInstalled or mod.isDownloading),
             ) {
@@ -176,10 +184,18 @@ fun ModCard(
             if (mod.isInstalled) {
                 Switch(
                     modifier = Modifier.padding(horizontal = 4.dp),
-                    checked = !mod.isDisabled, onCheckedChange = {},
+                    checked = !mod.isDisabled,
+                    onCheckedChange = { isChecked ->
+                        when (isChecked) {
+                            true -> handler.onEnableMod(mod)
+                            false -> handler.onDisableMod(mod)
+                        }
+                    },
                 )
                 IconButton(
-                    onClick = {}, shape = RoundedCornerShape(50), colors = IconButtonColors(
+                    onClick = { handler.onRemoveMod(mod) },
+                    shape = RoundedCornerShape(50),
+                    colors = IconButtonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.error,
                         disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -203,9 +219,7 @@ fun ResponsiveCardsSection(
     sectionTitle: String,
     mods: List<Mod>,
     paddingValues: PaddingValues,
-    onCardSelected: (Mod) -> Unit,
-    onDownloadClicked: (Mod) -> Unit,
-    getDownloadProgress: (Mod) -> DownloadInfo?,
+    handler: ModCardHandler,
     maxHeight: Dp = 1000.dp,
 ) {
     Column(
@@ -222,9 +236,7 @@ fun ResponsiveCardsSection(
             items(mods, key = { mod -> mod.id }) { mod ->
                 ModCard(
                     mod,
-                    onCardSelected,
-                    onDownloadClicked,
-                    getDownloadProgress(mod),
+                    handler,
                 )
             }
         }
